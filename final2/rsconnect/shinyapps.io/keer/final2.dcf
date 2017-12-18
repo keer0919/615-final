@@ -1,0 +1,12 @@
+name: final2
+title: final2
+username:
+account: keer
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 247776
+bundleId: 1130473
+url: https://keer.shinyapps.io/final2/
+when: 1513100239.2164
+asMultiple: FALSE
+asStatic: FALSE
