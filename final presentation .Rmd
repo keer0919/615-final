@@ -1,0 +1,494 @@
+---
+title: "615 Final Project Presentation"
+author: "Keer Jiang"
+date: "12/9/2017"
+output: ioslides_presentation
+---
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+#required packages
+library(twitteR)
+library(reshape)
+library(RgoogleMaps)
+library(ggmap)
+library(ggplot2)
+library(maptools)
+library(plyr)
+library(sp)
+library(splitstackshape)
+library(stringr)
+```
+
+##1. Motivation
+In this project, I discuss Twitter activity that relates to Starbucks. Starbucks is the biggest American coffee company and coffeehouse chain. One of the important reason that I choose Starbucks as my topic is that Starbucks utilized the mobile platform to launch the "Tweet-a-Coffee" promotion in October 2013. On this occasion, the promotion also involved Twitter and customes were able to purchase a $5 gift card for a friend by entering both "@tweetacoffee" and the friend's handle in a tweet. Therefore, I think the Twitter activity that about Starbucks would increased rapidly since then.
+
+##2. Map
+###a. Map of number of tweets
+First of all, this is the map where each point represents the number of tweets in the circle of radius equals 100 miles that centered in that point. And I want to explore people in which area prefer to express their feelings about Starbucks. The lighter the point, the greater number of tweets appear in that area. 
+```{r,echo=FALSE}
+#read all datasets needed
+all_states<-read.csv("plot_state5.csv")
+coordinates<-read.csv("plot_data5.csv")
+coordinates1<-coordinates[which(coordinates$number.of.tweets>60),]
+tweets<-read.csv("tweets.csv")
+starbucks<-read.csv("tweets.cleaned3_starbucks.csv")
+```
+
+```{r,echo=FALSE,fig.height=3,fig.length=6}
+p <- ggplot()
+p <- p + geom_polygon( data=all_states, aes(x=long, y=lat, group = group),colour="grey", fill=NA )
+p<- p + geom_point( data=coordinates1, aes(x=long, y=lat,color=number.of.tweets
+  )) + scale_size(name="# of tweets")
+p
+```
+
+##2.Map
+###a. Map of number of tweets
+According to the map we can see that most of the light points ditributed in east coast, Texas and Carlifonia, and there are mainly dark blue points in the middle area. This plot coincides with the fact that most of the big cities are locateded in east coast (e.g. Boston, NYC, Orlando etc) and west coast where there are more Starbucks coffeehouse.
+
+
+##2.Map
+### b. Geolocation Density Map
+Secondly, the desity plot shows the level of density in the map. The darker the area, the higher tweets density in that area.
+```{r,echo=FALSE,message=FALSE,warning=FALSE,fig.height=1,fig.height=6}
+map<-get_map(location = 'united states',zoom = 4,maptype = 'terrain',source = 'google',color = 'color')
+ggmap(map)+ggtitle("   Geolocation Density Plot")+
+  theme(plot.title = element_text(size = 18,face = "bold"))+stat_density2d(aes(x=long,y=lat,alpha=..level..),size=0.8,bins=3,data = coordinates1,geom = "polygon",colour="grey")
+```
+
+##2.Map
+### b. Geolocation Density Map
+According to the plot, we can get the similar result at in Map(a). The tweets posted density in east is the highest across the country.
+\newline
+\newline The maps indicate that people live in east part (or big cities), and then California and middle east part prefer using Twitter to express their feelings about Starbucks. The reason of this might be there are more Starbucks coffeehouse in these area and people live in big cities would love to use social media to share their daily lives with others.
+
+##3. Emoji Analysis
+### a. Rank of the frequently used emojis
+Firstly, the following is a bar chart presents the top 10 emojis in tweets relates to Starbucks.
+```{r,echo=FALSE}
+fnames <- c(
+  'tweets.cleaned3_starbucks'
+);
+fnames <- paste0(fnames, '.csv'); 
+df <- do.call(rbind.fill, lapply(fnames, read.csv));
+df$username <- substr(substr(df$url, 21, nchar(as.character(df$url))), 1, nchar(substr(df$url, 21, nchar(as.character(df$url))))-26);
+tweets.full <- df; 
+tweets.full$X <- NULL; 
+tweets.full$z <- 1; 
+#### sanity checking
+tweets.full$created <- as.POSIXct(tweets.full$created); 
+## dedupe dataset by url
+tweets.dupes <- tweets.full[duplicated(tweets.full$url), ]; 
+# test <- subset(tweets.full, url %in% tweets.dupes$url); test <- test[with(test, order(url)), ];
+tweets <- tweets.full[!duplicated(tweets.full$url), ]; 
+tweets <- arrange(tweets, url); row.names(tweets) <- NULL; 
+tweets$tweetid <- as.numeric(row.names(tweets)); 
+tweets.final <- tweets;
+```
+
+```{r,results="hide",echo=FALSE}
+emdict.la <- read.csv('emoticon_conversion_noGraphic.csv', header = F) 
+emdict.la <- emdict.la[-1, ]; 
+row.names(emdict.la) <- NULL; 
+names(emdict.la) <- c('unicode', 'bytes', 'name'); 
+emdict.la$emojiid <- row.names(emdict.la);
+emdict.jpb <- read.csv('emDict.csv', header = F) 
+emdict.jpb <- emdict.jpb[-1, ]; 
+row.names(emdict.jpb) <- NULL; 
+names(emdict.jpb) <- c('name', 'bytes', 'rencoding'); 
+emdict.jpb$name <- tolower(emdict.jpb$name);
+emdict.jpb$bytes <- NULL;
+## merge dictionaries
+emojis <- merge(emdict.la, emdict.jpb, by = 'name');  
+emojis$emojiid <- as.numeric(emojis$emojiid); 
+emojis <- arrange(emojis, emojiid);
+###### FIND TOP EMOJIS FOR A GIVEN SUBSET OF THE DATA
+tweets <- tweets.final;
+# tweets <- subset(tweets.final, hashtag %in% c('#womensmarch'));
+## create full tweets by emojis matrix
+df.s <- matrix(NA, nrow = nrow(tweets), ncol = ncol(emojis)); 
+system.time(df.s <- sapply(emojis$rencoding, regexpr, tweets$text, ignore.case = T, useBytes = T));
+rownames(df.s) <- 1:nrow(df.s); colnames(df.s) <- 1:ncol(df.s); df.t <- data.frame(df.s); df.t$tweetid <- tweets$tweetid;
+# merge in hashtag data from original tweets dataset
+df.a <- subset(tweets, select = c(tweetid, hashtag)); 
+df.u <- merge(df.t, df.a, by = 'tweetid'); 
+df.u$z <- 1; 
+df.u <- arrange(df.u, tweetid); 
+tweets.emojis.matrix <- df.u;
+## create emoji count dataset
+df <- subset(tweets.emojis.matrix)[, c(2:843)]
+count <- colSums(df > -1)
+emojis.m <- cbind(count, emojis)
+emojis.m <- arrange(emojis.m, desc(count))
+emojis.count <- subset(emojis.m, count > 1) 
+emojis.count$dens <- round(1000 * (emojis.count$count / nrow(tweets)), 1) 
+emojis.count$dens.sm <- (emojis.count$count + 1) / (nrow(tweets) + 1)
+emojis.count$rank <- as.numeric(row.names(emojis.count))
+emojis.count.p <- subset(emojis.count, select = c(name, dens, count, rank))
+# print summary stats
+subset(emojis.count.p, rank <= 10);
+num.tweets <- nrow(tweets); 
+df.t <- rowSums(tweets.emojis.matrix[, c(2:843)] > -1); 
+num.tweets.with.emojis <- length(df.t[df.t > 0]); 
+num.emojis <- sum(emojis.count$count);
+round(100 * (num.tweets.with.emojis / num.tweets), 1); 
+##### MAKE BAR CHART OF TOP EMOJIS IN NEW DATASET
+df.plot <- subset(emojis.count.p, rank <= 10); 
+xlab <- 'Rank'
+ylab <- 'Overall Frequency (per 1,000 Tweets)'
+```
+
+```{r,fig.height=4,fig.length=7,echo=FALSE}
+df.plot <- arrange(df.plot, name)
+imgs <- lapply(paste0('emojis-master/2017.0206 emoji data science tutorial/ios_9_3_emoji_files/',df.plot$name, '.png'), png::readPNG)
+g <- lapply(imgs, grid::rasterGrob);
+
+k <- 0.20 * (10/nrow(df.plot)) * max(df.plot$dens); 
+df.plot$xsize <- k; df.plot$ysize <- k; #df.plot$xsize <- k * (df.plot$dens / max(df.plot$dens)); df.plot$ysize <- k * (df.plot$dens / max(df.plot$dens));
+df.plot <- arrange(df.plot, name);
+g1 <- ggplot(data = df.plot, aes(x = rank, y = dens)) +
+  geom_bar(stat = 'identity', fill = 'dodgerblue4') +
+  xlab(xlab) + ylab(ylab) +
+  mapply(function(x, y, i) {
+    annotation_custom(g[[i]], xmin = x-0.5*df.plot$xsize[i], xmax = x+0.5*df.plot$xsize[i], 
+                      ymin = y-0.5*df.plot$ysize[i], ymax = y+0.5*df.plot$ysize[i])},
+    df.plot$rank, df.plot$dens, seq_len(nrow(df.plot))) +
+  scale_x_continuous(expand = c(0, 0), breaks = seq(1, nrow(df.plot), 1), labels = seq(1, nrow(df.plot), 1)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 1.10 * max(df.plot$dens))) +
+  theme(panel.grid.minor.y = element_blank(),
+        axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 14), 
+        axis.text.x  = element_text(size = 8, colour = 'black'), axis.text.y  = element_text(size = 8, colour = 'black'))
+g1
+```
+
+##3. Emoji Analysis
+### a. Rank of the frequently used emojis
+From the plot we can see that most of the frequently used emojis are about beverage, joy, christmas and love, which means starbucks usually bring people happiness. To get the exact proportion of positive and negative attitude towards Starbucks, I will do a sentiment analysis in later part.
+
+##3. Emoji Analysis
+###b. Top emoji scatterplot
+The next step after visualizing the top emojis is to compare emoji frequency between two different subsets of the data. We can use custom annotations to plot log odds ratios and overall densities on an x-y plane.
+```{r,results="hide",fig.height=4,fig.length=7,echo=FALSE}
+##### CREATE MASTER DATASET OF ORIGINAL TWEETS appended with array of emojis
+## EMOJIS: create reduced tweets+emojis matrix
+df.s <- data.frame(matrix(NA, nrow = nrow(tweets), ncol = 2)); 
+names(df.s) <- c('tweetid', 'emoji.ids'); 
+df.s$tweetid <- 1:nrow(tweets);
+system.time(df.s$emoji.ids <- apply(tweets.emojis.matrix[, c(2:843)], 1, function(x) paste(which(x > -1), sep = '', collapse = ', '))); 
+system.time(df.s$num.emojis <- sapply(df.s$emoji.ids, function(x) length(unlist(strsplit(x, ', '))))); 
+df.s.emojis <- subset(df.s, num.emojis > 0);
+df.s.nonemojis <- subset(df.s, num.emojis == 0); 
+df.s.nonemojis$emoji.names <- '';
+
+# convert to long, only for nonzero entries
+df.l <- cSplit(df.s.emojis, splitCols = 'emoji.ids', sep = ', ', direction = 'long')
+map <- subset(emojis, select = c(emojiid, name)); 
+map$emojiid <- as.numeric(map$emojiid);
+df.m <- merge(df.l, map, by.x = 'emoji.ids', by.y = 'emojiid'); 
+df.m <- arrange(df.m, tweetid); 
+df.m <- rename(df.m, c(name = 'emoji.name'))
+tweets.emojis.long <- subset(df.m, select = c(tweetid, emoji.name));
+df.n <- aggregate(emoji.name ~ tweetid, paste, collapse = ', ', data = df.m);
+
+## merge back with original tweets dataset
+df.f <- merge(df.s.emojis, df.n, by = 'tweetid'); 
+df.f <- rename(df.f, c(emoji.name = 'emoji.names'));
+df.g <- rbind(df.f, df.s.nonemojis); 
+df.g <- arrange(df.g, tweetid);
+df.h <- merge(tweets, df.g, by = 'tweetid', all.x = TRUE); 
+df.h$emoji.ids <- NULL; 
+df.h$tweetid <- as.numeric(df.h$tweetid); 
+df.h <- arrange(df.h, tweetid);
+tweets.emojis <- df.h;
+
+#### MAKE TWO WAY PLOT FOR A SET OF MUTUALLY EXCLUSIVE SUBSETS OF THE DATA
+df.1 <- subset(tweets.emojis, grepl(paste(c('latte'), collapse = '|'), tolower(tweets.emojis$text)));
+df.2 <- subset(tweets.emojis, grepl(paste(c('coffee'), collapse = '|'), tolower(tweets.emojis$text)));
+nrow(df.1); 
+nrow(df.2);
+# dataset 1
+df.a <- subset(subset(df.1, emoji.names != ''), select = c(tweetid, emoji.names)); 
+df.a$emoji.names <- as.character(df.a$emoji.names);
+df.b <- data.frame(table(unlist(strsplit(df.a$emoji.names, ',')))); 
+names(df.b) <- c('var', 'freq'); 
+df.b$var <- trimws(df.b$var, 'both'); 
+df.b <- subset(df.b, var != '');
+df.c <- aggregate(freq ~ var, data = df.b, function(x) sum(x)); 
+df.c <- df.c[with(df.c, order(-freq)), ]; 
+row.names(df.c) <- NULL;
+df.d <- subset(df.c, freq > 0); 
+df.d$dens <- round(1000 * (df.d$freq / nrow(df)), 1); 
+df.d$dens.sm <- (df.d$freq + 1) / (nrow(df) + 1); 
+df.d$rank <- as.numeric(row.names(df.d)); df.d <- rename(df.d, c(var = 'name'));
+df.e <- subset(df.d, select = c(name, dens, dens.sm, freq, rank)); 
+df.e$ht <- as.character(arrange(data.frame(table(tolower(unlist(str_extract_all(df.1$text, '#\\w+'))))), -Freq)$Var1[1]);
+df.e[1:10, ]; emojis.count.1 <- df.e;
+# dataset 2
+df.a <- subset(subset(df.2, emoji.names != ''), select = c(tweetid, emoji.names)); df.a$emoji.names <- as.character(df.a$emoji.names);
+df.b <- data.frame(table(unlist(strsplit(df.a$emoji.names, ',')))); 
+names(df.b) <- c('var', 'freq'); 
+df.b$var <- trimws(df.b$var, 'both'); 
+df.b <- subset(df.b, var != '');
+df.c <- aggregate(freq ~ var, data = df.b, function(x) sum(x)); 
+df.c <- df.c[with(df.c, order(-freq)), ]; row.names(df.c) <- NULL;
+df.d <- subset(df.c, freq > 1); 
+df.d$dens <- round(1000 * (df.d$freq / nrow(df)), 1); 
+df.d$dens.sm <- (df.d$freq + 1) / (nrow(df) + 1); 
+df.d$rank <- as.numeric(row.names(df.d)); 
+df.d <- rename(df.d, c(var = 'name'));
+df.e <- subset(df.d, select = c(name, dens, dens.sm, freq, rank));
+df.e$ht <- as.character(arrange(data.frame(table(tolower(unlist(str_extract_all(df.2$text, '#\\w+'))))), -Freq)$Var1[1]);
+df.e[1:10, ]; 
+emojis.count.2 <- df.e;
+# combine datasets and create final dataset
+names(emojis.count.1)[-1] <- paste0(names(emojis.count.1)[-1], '.1'); 
+names(emojis.count.2)[-1] <- paste0(names(emojis.count.2)[-1], '.2'); 
+df.a <- merge(emojis.count.1, emojis.count.2, by = 'name', all.x = TRUE, all.y = TRUE);
+df.a[, c(2:4, 6:8)][is.na(df.a[, c(2:4, 6:8)])] <- 0; 
+df.a <- df.a[with (df.a, order(-dens.1)), ];
+df.a$index <- ifelse(df.a$dens.1 > 0 & df.a$dens.2 > 0 & (df.a$dens.1 > df.a$dens.2), round(100 * ((df.a$dens.1 / df.a$dens.2) - 1), 0),
+                     ifelse(df.a$dens.1 > 0 & df.a$dens.2 > 0 & (df.a$dens.2 > df.a$dens.1), -1 * round(100 * ((df.a$dens.2 / df.a$dens.1) - 1), 0), NA));
+df.a$logor <- log(df.a$dens.sm.1 / df.a$dens.sm.2);
+df.a$dens.mean <- 0.5 * (df.a$dens.1 + df.a$dens.2);
+k <- 50; 
+df.b <- subset(df.a, (rank.1 <= k | rank.2 <= k) & 
+                          (freq.1 >= 1 | freq.2 >= 1) & 
+                          (freq.1 > 0 & freq.2 > 0) & dens.mean > 0); nrow(df.b);
+df.c <- subset(df.b, select = c(name, dens.1, dens.2, freq.1, freq.2, dens.mean, round(logor, 2)));
+df.c <- df.c[with(df.c, order(-logor)), ]; row.names(df.c) <- NULL; nrow(df.c); df.c;
+emojis.comp.p <- df.c;
+rbind(head(emojis.comp.p), tail(emojis.comp.p))
+```
+
+```{r,fig.height=4,fig.length=7,echo=FALSE}
+##### PLOT TOP EMOJIS SCATTERPLOT: FREQ VS VALENCE  
+## read in custom emojis
+#setwd('.../Desktop/615/ios_9_3_emoji_files');
+df.t <- arrange(emojis.comp.p, name);
+imgs <- lapply(paste0('emojis-master/2017.0206 emoji data science tutorial/ios_9_3_emoji_files/',df.t$name, '.png'), png::readPNG)
+g <- lapply(imgs, grid::rasterGrob);
+## make plot  
+df.t <- arrange(emojis.comp.p, logor)
+xlab <- paste0('Emoji Valence: Log Odds Ratio (', paste0(unique(emojis.count.2$ht), ' <--> ', unique(emojis.count.1$ht), ')'));
+ylab <- 'Overall Frequency (Per 1,000 Tweets)'
+k <- 8 # size parameter for median element
+xsize <- (k/100) * (max(df.t$logor) - min(df.t$logor)); ysize <- (k/100) * (max(df.t$dens.mean) - min(df.t$dens.mean));
+df.t$xsize <- xsize; df.t$ysize <- ysize;
+df.t$dens.m <- ifelse(df.t$dens.mean > median(df.t$dens.mean), round(sqrt((df.t$dens.mean / min(df.t$dens.mean))), 2), 1);
+df.t$xsize <- df.t$dens.m * df.t$xsize; df.t$ysize <- df.t$dens.m * df.t$ysize;
+df.t <- arrange(df.t, name);
+g1 <- ggplot(df.t, aes(jitter(logor), dens.mean)) +
+  xlab(xlab) + ylab(ylab) +
+  mapply(function(x, y, i) {
+    annotation_custom(g[[i]], xmin = x-0.5*df.t$xsize[i], xmax = x+0.5*df.t$xsize[i], 
+                      ymin = y-0.5*df.t$ysize[i], ymax = y+0.5*df.t$ysize[i])},
+    jitter(df.t$logor), df.t$dens.mean, seq_len(nrow(df.t))) +
+  scale_x_continuous(limits = c(1.15 * min(df.t$logor), 1.15 * max(df.t$logor))) +
+  scale_y_continuous(limits = c(0, 1.20 * max(df.t$dens.mean))) +
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10), 
+        axis.text.x  = element_text(size = 8, colour = 'black'), axis.text.y  = element_text(size = 8, colour = 'black'))
+g1
+```
+
+##3. Emoji Analysis
+###b. Top emoji scatterplot
+The result is interesing and seem intuitive. Hot beverage, joy face and red heart emojis over index on #coffee. The yummy face appeara around y=0 means the odds ratio close to 0 and which indicate this emoji is used equally frequently with both hashtags. 
+
+##4. Text Mining
+### a. Word Frequency
+In exploring the most frequently used words when people post tweets about Starbucks, the text variable is used in the dataset. Firstly, the following is the bar chart that pick the words that appear more than 900 times.
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+#required packages
+library(ROAuth)
+library(streamR)
+library(tm)
+library(SnowballC)
+library(ggvis)
+library(ggmap)
+library(grid) 
+library(dplyr)
+library(wordcloud)
+library(dplyr)
+library(gridExtra)
+library(topicmodels)
+library(knitr)
+```
+
+```{r,warning=FALSE,fig.height=4,fig.length=7,echo=FALSE}
+#build a corpus, and specify the source to be character vectors
+myCorpus<-Corpus(VectorSource(tweets$text))
+#only keep English
+removeNumPunct<-function(x) gsub("[^[:alpha:][:space:space]]*","",x)
+myCorpus<-tm_map(myCorpus,content_transformer(removeNumPunct))
+#convert to lower case
+myCorpus<-tm_map(myCorpus,content_transformer(tolower))
+#remove url's
+removeURL<-function(x) gsub("http[^[:space:]]*","",x)
+myCorpus<-tm_map(myCorpus,content_transformer(removeURL))
+#remove stopwords
+myStopwords<-c(stopwords('english'),"use","see","used","via","amp","im","will","ear","rt","starbucks","just","get")
+myCorpus<-tm_map(myCorpus,removeWords,myStopwords)
+#remove blank
+myCorpus<-tm_map(myCorpus,stripWhitespace)
+#remove punctuation
+myCorpus<-tm_map(myCorpus,removePunctuation)
+
+#build term document marix
+tdm<-TermDocumentMatrix(myCorpus,control = list(wordLengths=c(1,Inf)))
+term.freq<-rowSums(as.matrix(tdm))
+term.freq2<-subset(term.freq,term.freq>=10)
+term.df<-data.frame(term=names(term.freq2),freq=term.freq2)
+term.df1<-term.df[which(term.df$freq>900),]
+bad_word1 <- c('NA')
+term.df <- term.df[!(term.df[,'term'] %in% bad_word1),]
+par(mfrow=c(1,1))
+ggplot(term.df1,aes(x=term,y=freq))+geom_bar(stat = "identity")+
+  xlab("Terms")+ylab("Count")+coord_flip()+
+  theme(axis.text = element_text(size = 7))
+```
+
+### a. Word Frequency
+The result of the bar chart is pretty intuitive. "Coffee" appears more than 1800 times which is much greater than other words. Then the second and third words are "cups" and "like". We can see that the top three frequently used words are all relavent to Starbucks and "like" may used to express positive sentiment towards Starbucks.
+
+##4. Text Mining
+### b. Word Cloud
+```{r,echo=FALSE,fig.height=4,fig.length=8,warning=FALSE,message=FALSE}
+m<-as.matrix(tdm)
+#calculate the frequency of words ans sort is by frequency
+word.freq<-sort(rowSums(m),decreasing = T)
+#set up colors
+pal<-brewer.pal(8,"Dark2")
+#plot word cloud
+wordcloud(words = names(word.freq),freq = word.freq,min.freq = 10,
+          random.order = F,colors = pal,max.words = 60)
+```
+
+##4. Text Mining
+### c. Sentiment Analysis
+### (1). Sentiment Score 
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+#required packages
+library(syuzhet)
+library(plotrix)
+```
+
+```{r,fig.height=3,fig.length=8,echo=FALSE}
+#extract text
+star<-read.csv("tweets.cleaned3_starbucks.csv")
+star.text<-star$text
+
+#clean text, get rid of emoji and other irrelavant characters
+star.text<-sapply(star.text,function(row) iconv(row,"latin1","ASCII",sub = ""))
+#remove retweet entities
+star.text<-gsub("(RT|via)((?:\\b\\W*@\\w+)+)","",star.text)
+#remove at someone
+star.text<-gsub("@\\w+","",star.text)
+#remove punctuation
+star.text<-gsub("[[:punct:]]","",star.text)
+#remove numbers
+star.text<-gsub("[[:digit:]]","",star.text)
+#remove html link
+star.text<-gsub("http\\w+","",star.text)
+#remove unnecessary spaces
+star.text<-gsub("[ \t]{2,}","",star.text)
+star.text<-gsub("^\\s+|\\s+$","",star.text)
+
+#define "tolower error handling" function
+try.error<-function(x){
+  #create missing values
+  y=NA
+  #tryCatch error
+  try_error=tryCatch(tolower(x),error=function(e) e)
+  #if it is not an error
+  if(!inherits(try_error,"error"))
+    y=tolower(x)
+  #result
+  return(y)
+}
+#lower case using try.error with sapply
+star.text<-sapply(star.text,try.error)
+#extract sentiment
+mySentiment<-get_nrc_sentiment(star.text)
+#plot sentiment
+sentimentTotals<-data.frame(colSums(mySentiment[,c(1:8)]))
+names(sentimentTotals)<-"count"
+sentimentTotals<-cbind("sentiment"=rownames(sentimentTotals),sentimentTotals)
+rownames(sentimentTotals)<-NULL
+ggplot(data = sentimentTotals,aes(x=sentiment,y=count))+
+  geom_bar(aes(fill=sentiment),stat = "identity",alpha=0.5)+
+  theme(legend.position = "none")+
+  xlab("Sentiment")+ylab("Total Count")+
+  ggtitle("                                  Total Sentiment Score for All Tweets")
+```
+
+## c. Sentiment Analysis
+### (1). Sentiment Score 
+"Total Sentiment Score of all Tweets" shows the difference in number of eight emotions based on all the tweets twxt in the US. We notice that that all of the top three emotions are positive emotions. The height of other five emotions which are anger, disgust, sadness,fear and surprise are close to each other but surprise is a little bit higher than other four negative emotions. Therefore, we can conclude that there are more Twitter users that hold a postive attitude towards Starbucks.
+
+##4. Text Mining
+### c. Sentiment Analysis
+### (2). Proportion of postive and negative
+```{r,echo=FALSE,message=FALSE,warning=FALSE,fig.height=3,fig.height=4}
+#pie chart with percentages
+pos<-sum(mySentiment$positive)
+neg<-sum(mySentiment$negative)
+slices<-c(pos,neg)
+lbls<-c("Positive","Negative")
+pie3D(slices,labels = lbls,explode = 0.12,main="Pie Chart of Positve and Negative Tweets")
+#combine cleaned data with sentiment data
+star.sentiment<-cbind(star,mySentiment[,9:10])
+```
+
+This pie chart clearly indicates that positive tweets take up more than three quatiles of the total tweets. Therefore, we can get the same conclusion as from the bar chart. Incorporate this chart with the sentiment score bar chart we can see that most of the custmoers are satisfied with Starbucks.
+
+
+
+##5. Clustering
+Two methods are developed here to do clustering analysis. The first method is the K-Means clusting. This method aims to partition the n observations into k sets so as to minimize the within-cluster sum of squares. Second on is called hierarchical clustering. 
+
+### a. K-Means Clustering
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+#remove sparse terms
+tdm2<-removeSparseTerms(tdm,sparse = 0.98)
+#showing the words that are left 
+m2<-as.matrix(tdm2)
+m3<-t(m2)
+m4 <- m3[,-c(6,24)]
+#colnames(m3)
+set.seed(2017)
+k<-5
+kmeansResult<-kmeans(m4,k)
+#round(kmeansResult$centers,digits = 3)
+
+for(i in 1:k){
+  cat(paste("cluster",i,": ",sep = ""))
+  s<-sort(kmeansResult$centers[i,],decreasing = T)
+  cat(names(s)[1:5],"\n")
+}
+```
+
+Setting k equals to five gives us five clusters. From the clustering result we can see that the words within each group are somewhat similar to each other. 
+
+##5. Clustering
+### b. Hierarchical Clustering
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+#remove sparse terms
+tdm2.1<-removeSparseTerms(tdm,sparse = 0.96)
+#showing the words that are left 
+m2.1<-as.matrix(tdm2.1)
+#cluster terms
+distMatrix<-dist(scale(m2.1))
+fit<-hclust(distMatrix,method = "complete")
+#show cluster dendrogram
+p<-plot(fit,xlab="")
+p<-rect.hclust(fit,k=5)
+```
+
+##5. Clustering
+### b. Hierarchical Clustering
+In this part, I use hclust function and adopt the complete method to do the hierarchical clustering.To compare the two clustering methods, I also divide those words into five group. The clustering results by the two methods are not exactly the same but both give us reasonable clusters.
+
+##6. Shinyapp
+My Shinyapp website: https://keer.shinyapps.io/final2/
